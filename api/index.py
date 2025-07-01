@@ -1,22 +1,31 @@
 import os
-import requests
+from telegram import Bot
+from telegram.error import TelegramError
+from http.server import BaseHTTPRequestHandler
+import json
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("GROUP_CHAT_ID")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-def handler(request):
-    body = request.get_data(as_text=True)
-    
-    if not body:
-        return {"statusCode": 400, "body": "Empty body"}
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            payload = json.loads(post_data)
+            message = payload.get("text", "")
 
-    text = f"Новая бронь:\n{body}"
+            bot = Bot(token=BOT_TOKEN)
+            bot.send_message(chat_id=CHAT_ID, text=message)
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text}
-    r = requests.post(url, data=payload)
-
-    return {
-        "statusCode": 200,
-        "body": "Sent to Telegram!" if r.status_code == 200 else "Failed"
-    }
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Message sent to Telegram!")
+        except TelegramError as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(str(e).encode())
+        except Exception as e:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(str(e).encode())
