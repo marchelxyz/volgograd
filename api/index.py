@@ -2,22 +2,21 @@
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).send('Method Not Allowed');
+    return res.status(405).send('Only POST allowed');
   }
 
   const data = req.body;
   if (!data || typeof data !== 'object') {
-    return res.status(400).send('Bad Request: JSON expected');
+    return res.status(400).send('Bad Request: JSON body expected');
   }
 
-  // Собираем текст из ключей и значений JSON
-  const lines = Object.entries(data).map(
-    ([key, val]) => `${key}: ${val}`
-  );
-  const text = lines.join('\n');
+  // Превращаем пришедший JSON в строку
+  const text = Object.entries(data)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
 
-  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-  const CHAT_ID  = process.env.TELEGRAM_CHAT_ID;
+  const BOT_TOKEN = process.env.BOT_TOKEN;
+  const CHAT_ID  = process.env.CHAT_ID;
   const url      = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
   try {
@@ -26,16 +25,14 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: CHAT_ID, text })
     });
-
     if (!telegramRes.ok) {
-      const errText = await telegramRes.text();
-      console.error('Telegram API error:', errText);
-      return res.status(telegramRes.status).send('Telegram API error');
+      const err = await telegramRes.text();
+      console.error('Telegram API error:', err);
+      return res.status(500).send('Telegram API error');
     }
-
     return res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error('Internal error:', err);
+  } catch (e) {
+    console.error('Internal error:', e);
     return res.status(500).send('Internal Server Error');
   }
 }
