@@ -1,46 +1,41 @@
-import json
-import os
-from telegram import Bot, TelegramError
+// api/index.js
 
-def handler(request):
-    try:
-        data = request.get_json()
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method Not Allowed');
+  }
 
-        name = data.get("Имя", "Без имени")
-        phone = data.get("Телефон", "Без телефона")
-        date = data.get("Дата", "")
-        time1 = data.get("Время 03.07", "")
-        time2 = data.get("Время 04.07", "")
-        guests = data.get("Кол-во гостей", "")
-        form_url = data.get("Ссылка на форму", "")
+  const data = req.body;
+  if (!data || typeof data !== 'object') {
+    return res.status(400).send('Bad Request: JSON expected');
+  }
 
-        # Собираем сообщение
-        message = (
-            f"📥 Новая заявка на открытие:\n"
-            f"👤 Имя: {name}\n"
-            f"📞 Телефон: {phone}\n"
-            f"📅 Дата: {date}\n"
-            f"⏰ Время 03.07: {time1}\n"
-            f"⏰ Время 04.07: {time2}\n"
-            f"👥 Гостей: {guests}\n"
-            f"🔗 Форма: {form_url}"
-        )
+  // Собираем текст из ключей и значений JSON
+  const lines = Object.entries(data).map(
+    ([key, val]) => `${key}: ${val}`
+  );
+  const text = lines.join('\n');
 
-        bot = Bot(token=os.environ["TELEGRAM_BOT_TOKEN"])
-        bot.send_message(chat_id=os.environ["TELEGRAM_CHAT_ID"], text=message)
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const CHAT_ID  = process.env.TELEGRAM_CHAT_ID;
+  const url      = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"ok": True})
-        }
+  try {
+    const telegramRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: CHAT_ID, text })
+    });
 
-    except TelegramError as e:
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": str(e)})
-        }
-    except Exception as e:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": str(e)})
-        }
+    if (!telegramRes.ok) {
+      const errText = await telegramRes.text();
+      console.error('Telegram API error:', errText);
+      return res.status(telegramRes.status).send('Telegram API error');
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('Internal error:', err);
+    return res.status(500).send('Internal Server Error');
+  }
+}
